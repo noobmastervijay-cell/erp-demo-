@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  # Next.js College ERP Application Container
+  smit-erp-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smit_erp_app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://smit_admin:smit_password_2026@postgres:5432/smit_erp?schema=public
+      - JWT_SECRET=smit-erp-super-secret-key-2026-production-ready
+      - NEXT_PUBLIC_APP_URL=http://localhost:3000
+    depends_on:
+      - postgres
+
+  # PostgreSQL Database Container
+  postgres:
+    image: postgres:16-alpine
+    container_name: smit_erp_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: smit_admin
+      POSTGRES_PASSWORD: smit_password_2026
+      POSTGRES_DB: smit_erp
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

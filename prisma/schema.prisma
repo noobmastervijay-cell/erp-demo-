@@ -1,0 +1,242 @@
+// Prisma Schema for Sri Muthukumaran Institute of Technology ERP
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String        @id @default(uuid())
+  employeeId         String        @unique
+  email              String        @unique
+  passwordHash       String
+  name               String
+  roleId             String
+  role               Role          @relation(fields: [roleId], references: [id])
+  status             String        @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED
+  mustChangePassword Boolean       @default(false)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  staffProfile       StaffProfile?
+  auditLogs          AuditLog[]
+  hodDepartments     Department[]       @relation("DepartmentHOD")
+  markedAttendance   AttendanceRecord[] @relation("AttendanceMarkedBy")
+  uploadedDocuments  DocumentUpload[]   @relation("DocumentUploadedBy")
+  announcements      Announcement[]     @relation("AnnouncementAuthor")
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  name        String           @unique // e.g. "SUPER_ADMIN", "HOD", "STAFF"
+  label       String           // e.g. "Super Admin", "Head of Department", "Faculty Staff"
+  description String?
+  isSystem    Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  users       User[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  code        String           @unique // e.g. "staff:view", "staff:create", "academic:manage", "students:view", "attendance:manage", "documents:upload"
+  name        String
+  category    String           // "Staff", "Academic", "Students", "Attendance", "Documents", "Reports", "Audit", "Settings"
+  description String?
+
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model StaffProfile {
+  id               String      @id @default(uuid())
+  userId           String      @unique
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone            String?
+  departmentId     String?
+  department       Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  designationId    String?
+  designation      Designation? @relation(fields: [designationId], references: [id], onDelete: SetNull)
+  dateJoined       DateTime?   @default(now())
+  employmentStatus String      @default("FULL_TIME") // FULL_TIME, PART_TIME, CONTRACT, VISITING
+  photoUrl         String?
+  address          String?
+  emergencyContact String?
+  qualification    String?
+  experienceYears  Int?        @default(0)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+}
+
+model Department {
+  id          String         @id @default(uuid())
+  code        String         @unique // e.g. "CSE", "ECE", "MECH", "AIDS", "CIVIL"
+  name        String         // e.g. "Computer Science & Engineering"
+  description String?
+  status      String         @default("ACTIVE") // ACTIVE, ARCHIVED
+  hodUserId   String?
+  hodUser     User?          @relation("DepartmentHOD", fields: [hodUserId], references: [id], onDelete: SetNull)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  staff       StaffProfile[]
+  courses     Course[]
+  subjects    Subject[]
+  students    Student[]
+  attendance  AttendanceRecord[]
+  documents   DocumentUpload[]
+}
+
+model Course {
+  id             String     @id @default(uuid())
+  code           String     @unique // e.g. "BE-CSE", "BTECH-AIDS"
+  name           String     // e.g. "B.E. Computer Science and Engineering"
+  departmentId   String
+  department     Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  degreeType     String     @default("UNDERGRADUATE") // UNDERGRADUATE, POSTGRADUATE, DIPLOMA
+  durationYears  Int        @default(4)
+  totalSemesters Int        @default(8)
+  status         String     @default("ACTIVE") // ACTIVE, ARCHIVED
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  subjects       Subject[]
+  students       Student[]
+}
+
+model Subject {
+  id           String     @id @default(uuid())
+  code         String     @unique // e.g. "CS3501", "EC8451"
+  name         String     // e.g. "Compiler Design", "Digital Signal Processing"
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  courseId     String
+  course       Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  semester     Int        @default(1)
+  credits      Int        @default(3)
+  subjectType  String     @default("THEORY") // THEORY, PRACTICAL, ELECTIVE, LABORATORY
+  status       String     @default("ACTIVE") // ACTIVE, ARCHIVED
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  attendance   AttendanceRecord[]
+}
+
+model Designation {
+  id          String         @id @default(uuid())
+  code        String         @unique // e.g. "PROF", "ASSOC_PROF", "ASST_PROF", "LAB_ASST"
+  title       String         // e.g. "Professor", "Associate Professor", "Assistant Professor"
+  category    String         @default("TEACHING") // TEACHING, NON_TEACHING, ADMINISTRATIVE
+  status      String         @default("ACTIVE") // ACTIVE, ARCHIVED
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  staff       StaffProfile[]
+}
+
+model Student {
+  id           String      @id @default(uuid())
+  rollNumber   String      @unique // e.g. "211421104001"
+  name         String
+  email        String?     @unique
+  phone        String?
+  departmentId String
+  department   Department  @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  courseId     String
+  course       Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  semester     Int         @default(1)
+  section      String      @default("A")
+  batch        String      // e.g. "2021-2025"
+  status       String      @default("ACTIVE") // ACTIVE, GRADUATED, SUSPENDED
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  attendance   AttendanceRecord[]
+  documents    DocumentUpload[]
+}
+
+model AttendanceRecord {
+  id             String     @id @default(uuid())
+  studentId      String
+  student        Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subjectId      String?
+  subject        Subject?   @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  departmentId   String
+  department     Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  markedByUserId String
+  markedByUser   User       @relation("AttendanceMarkedBy", fields: [markedByUserId], references: [id], onDelete: Cascade)
+  date           DateTime   @default(now())
+  status         String     // PRESENT, ABSENT, LATE
+  remarks        String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+}
+
+model DocumentUpload {
+  id               String      @id @default(uuid())
+  title            String
+  description      String?
+  fileType         String      // WORD, PDF, SPREADSHEET, OTHER
+  fileName         String
+  fileUrl          String
+  fileSize         Int         @default(0) // bytes
+  departmentId     String
+  department       Department  @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  uploadedByUserId String
+  uploadedByUser   User        @relation("DocumentUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: Cascade)
+  studentId        String?
+  student          Student?    @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName  String?
+  userEmail String?
+  action    String   // e.g. "USER_CREATED", "USER_DEACTIVATED", "DOCUMENT_UPLOADED"
+  category  String   // "USER", "STAFF", "ACADEMIC", "STUDENTS", "DOCUMENTS", "SECURITY"
+  details   String   // JSON string description
+  ipAddress String?  @default("127.0.0.1")
+  createdAt DateTime @default(now())
+}
+
+model AppSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique // e.g. "college_name", "logo_url", "primary_color", "academic_year"
+  value     String
+  group     String   @default("GENERAL") // GENERAL, BRANDING, ACADEMIC, MODULES
+  updatedAt DateTime @updatedAt
+}
+
+model Announcement {
+  id             String   @id @default(uuid())
+  title          String
+  content        String
+  priority       String   @default("NORMAL") // URGENT, HIGH, NORMAL, LOW
+  targetAudience String   @default("ALL")    // ALL, HOD, STAFF
+  status         String   @default("PUBLISHED") // PUBLISHED, DRAFT, ARCHIVED
+  isPinned       Boolean  @default(false)
+  authorId       String
+  author         User     @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
